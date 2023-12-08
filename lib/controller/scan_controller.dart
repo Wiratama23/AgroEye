@@ -18,7 +18,21 @@ class ScanController extends GetxController {
   // RxDouble x = 0.0.obs;
   // RxDouble y = 0.0.obs;
   // RxDouble w = 0.0.obs;
-  RxString label = "".obs;
+  RxString rawlabel = "".obs;
+  RxString name = "".obs;
+  RxString diagnose = "".obs;
+  RxString accuracy = "".obs;
+  
+  splitter(String label) {
+    if(label.contains("___")){
+      final split = label.split("___");
+      if(split.length == 2){
+        split[0] = split[0].replaceAll("_", " ");
+        name.value = split[0].replaceAll(",", "");
+        diagnose.value = split[1].replaceAll("_", " ");
+      }
+    }
+  }
 
   initCamera() async {
     if(await Permission.camera.request().isGranted) {
@@ -65,9 +79,11 @@ class ScanController extends GetxController {
         var detectObject = detector.first;
         print("ini suka-suka ${detectObject['confidence']}");
         if(detectObject['confidence'] * 100> 0.045){
-          label.value = detectObject['label'];
-          width = RxDouble(image.width.toDouble());
-          height = RxDouble(image.height.toDouble());
+          splitter(detectObject['label']);
+          accuracy.value = (detectObject['confidence'] * 100).toStringAsFixed(0) + '%';
+          // rawlabel.value = detectObject['label'];
+          // width = RxDouble(image.width.toDouble());
+          // height = RxDouble(image.height.toDouble());
           // h.value = detector.first['rect']['h'];
           // w.value = detector.first['rect']['w'];
           // x.value = detector.first['rect']['x'];
@@ -75,7 +91,7 @@ class ScanController extends GetxController {
           update();
         }
         log("Result is $detector");
-        print("label : ${label.value}");
+        print("label : ${rawlabel.value}");
         print("width : ${width.value}");
         print("heigth : ${height.value}");
         // print("x${x.value}");
@@ -90,7 +106,6 @@ class ScanController extends GetxController {
   }
 
   initTFLite() async {
-    print("ininiinininininininininininininin inittflite");
     await Tflite.loadModel(
         model: "assets/daun_mobilenet_model.tflite",
         labels: "assets/daun_labels.txt",
@@ -105,11 +120,6 @@ class ScanController extends GetxController {
   onInit() async {
     // TODO: implement onInit
     super.onInit();
-    // if(isLoaded()){
-    //   initCamera();
-    // } else {
-    //   initTFLite();
-    // }
     await initTFLite();
     initCamera();
   }

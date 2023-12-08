@@ -9,6 +9,8 @@ class CameraView extends GetView<ScanController> {
 
   @override
   Widget build(BuildContext context) {
+    double Widths = MediaQuery.of(context).size.width;
+    double Heights = MediaQuery.of(context).size.height;
     return Scaffold(
       body: Obx(()
         // init: ScanController(),
@@ -16,14 +18,54 @@ class CameraView extends GetView<ScanController> {
         {
           return  controller.isCameraInit.value
               ? Column (
-                mainAxisAlignment: MainAxisAlignment.center,
+                // mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  CameraPreview(controller.cameraController),
+                  const SizedBox(height: 40),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: Widths * 0.1),
+                    child: Container(
+                      height: Heights * 0.5,
+                      width: Widths * 0.8,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(15),
+                        color: Colors.black,
+                        border: Border.all(
+                          color: Colors.black,
+                          width: 3,
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(15),
+                          child: CameraPreview(controller.cameraController)),
+                    ),
+                  ),
                   const SizedBox(height: 20),
-                  Container(
-                    height: 100,
-                    width: 200,
-                    child: Text("Item : ${controller.label.value}"),
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(left: Widths * 0.1),
+                      child: Row(
+                        children: [
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("Nama Tumbuhan\t :"),
+                              Text("Hasil Diagnosa\t\t\t\t :"),
+                              Text("Akurasi\t\t\t\t              :")
+                            ],
+                          ),
+                          const SizedBox(width: 5),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(controller.name.value),
+                              Text(controller.diagnose.value),
+                              Text(controller.accuracy.value)
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   )
                   // Positioned(
                   //   top: (controller.y.value * 700),
