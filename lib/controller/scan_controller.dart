@@ -78,7 +78,7 @@ class ScanController extends GetxController {
       if (detector != null) {
         var detectObject = detector.first;
         print("ini suka-suka ${detectObject['confidence']}");
-        if(detectObject['confidence'] * 100> 0.045){
+        if(detectObject['confidence'] * 100> 50){
           splitter(detectObject['label']);
           accuracy.value = (detectObject['confidence'] * 100).toStringAsFixed(0) + '%';
           // rawlabel.value = detectObject['label'];
@@ -88,6 +88,10 @@ class ScanController extends GetxController {
           // w.value = detector.first['rect']['w'];
           // x.value = detector.first['rect']['x'];
           // y.value = detector.first['rect']['y'];
+          update();
+        } else {
+          splitter("tidak ditemukan___tidak ditemukan");
+          accuracy.value = (detectObject['confidence'] * 100).toStringAsFixed(0) + '%';
           update();
         }
         log("Result is $detector");
