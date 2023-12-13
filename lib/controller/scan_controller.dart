@@ -2,13 +2,14 @@ import 'dart:developer';
 
 import 'package:camera/camera.dart';
 import 'package:get/get.dart';
+import 'package:get/get_rx/src/rx_workers/utils/debouncer.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:flutter_tflite/flutter_tflite.dart';
+import 'package:tflite_v2/tflite_v2.dart';
 
 class ScanController extends GetxController {
   late CameraController cameraController;
   late List<CameraDescription> cameras;
-
+  final _debouncer = Debouncer(delay: const Duration(milliseconds: 500));
   RxBool isCameraInit = false.obs;
   RxBool isLoaded = false.obs;
   RxInt cameraCount = 0.obs;
@@ -18,11 +19,47 @@ class ScanController extends GetxController {
   // RxDouble x = 0.0.obs;
   // RxDouble y = 0.0.obs;
   // RxDouble w = 0.0.obs;
+  RxString model = "".obs;
+  RxString labels = "".obs;
   RxString rawlabel = "".obs;
   RxString name = "".obs;
   RxString diagnose = "".obs;
   RxString accuracy = "".obs;
-  
+
+  checkPermission(Permission permission, String classifies) async {
+    final status = await permission.request();
+    if (status.isGranted) {
+      classify(classifies);
+    } else {
+      Get.snackbar(
+          "Eror",
+          "Permission is not granted");
+    }
+  }
+
+  classify(String classify) async {
+    if (classify.contains("leaf")) {
+      model.value = "assets/daun_mobilenet_model.tflite";
+      labels.value = "assets/daun_labels.txt";
+    } else if (classify.contains("paddy")) {
+      model.value = "assets/daun_mobilenet_model.tflite";
+      labels.value = "assets/daun_labels.txt";
+    } else {
+      model.value = "assets/daun_mobilenet_model.tflite";
+      labels.value = "assets/daun_labels.txt";
+    }
+    update();
+    print("ini modelnya ${model.value}");
+    print("ini labelnya ${labels.value}");
+    await initTFLite();
+    if(isCameraInit.isFalse){
+      initCamera();
+    }else{
+      cameraController.resumePreview();
+    }
+    toCamera();
+  }
+
   splitter(String label) {
     if(label.contains("___")){
       final split = label.split("___");
@@ -40,19 +77,22 @@ class ScanController extends GetxController {
       cameraController = CameraController(
         cameras[0],
         ResolutionPreset.max,
-        imageFormatGroup: ImageFormatGroup.yuv420
+        imageFormatGroup: ImageFormatGroup.yuv420,
+          enableAudio: false
       );
       await cameraController.initialize().then((value) {
         cameraController.startImageStream((image) {
           cameraCount.value++;
           if(cameraCount.value % 10 == 0){
             cameraCount.value = 0;
-            objectDetector(image);
+            _debouncer(() {
+              objectDetector(image);
+            });
           }
           update();
+          isCameraInit(true);
         });
       });
-      isCameraInit(true);
       update();
     } else {
       print("permission denied");
@@ -78,7 +118,7 @@ class ScanController extends GetxController {
       if (detector != null) {
         var detectObject = detector.first;
         print("ini suka-suka ${detectObject['confidence']}");
-        if(detectObject['confidence'] * 100> 0.045){
+        if(detectObject['confidence'] * 100> 50){
           splitter(detectObject['label']);
           accuracy.value = (detectObject['confidence'] * 100).toStringAsFixed(0) + '%';
           // rawlabel.value = detectObject['label'];
@@ -88,6 +128,10 @@ class ScanController extends GetxController {
           // w.value = detector.first['rect']['w'];
           // x.value = detector.first['rect']['x'];
           // y.value = detector.first['rect']['y'];
+          update();
+        } else {
+          splitter("tidak ditemukan___tidak ditemukan");
+          accuracy.value = (detectObject['confidence'] * 100).toStringAsFixed(0) + '%';
           update();
         }
         log("Result is $detector");
@@ -106,28 +150,44 @@ class ScanController extends GetxController {
   }
 
   initTFLite() async {
-    await Tflite.loadModel(
-        model: "assets/daun_mobilenet_model.tflite",
-        labels: "assets/daun_labels.txt",
-        isAsset: true,
-        numThreads: 1,
-        useGpuDelegate: false
-    );
-    isLoaded(true);
+    try{
+      Tflite.close();
+      await Tflite.loadModel(
+          model: model.value,
+          labels: labels.value,
+          isAsset: true,
+          numThreads: 1,
+          useGpuDelegate: false
+      );
+      isLoaded(true);
+    }catch(e){
+      print(e);
+    }
   }
 
-  @override
-  onInit() async {
-    // TODO: implement onInit
-    super.onInit();
-    await initTFLite();
-    initCamera();
+  void closeTFLiteResources() {
+    model.value = "";
+    labels.value = "";
+    isLoaded(false);
   }
 
-  @override
-  void dispose() {
-    // TODO: implement dispose
-    cameraController.dispose();
-    super.dispose();
+  void disposeCamera() {
+    cameraController.pausePreview();
+    // isCameraInit(false);
   }
+
+  toCamera(){
+    Get.toNamed("/home");
+  }
+
+  toDashboard(){
+    if(isCameraInit.isTrue && isLoaded.isTrue){
+      closeTFLiteResources();
+      disposeCamera();
+      Get.toNamed("/dashboard");
+    } else {
+      Get.snackbar("Error", "Wait for a while");
+    }
+  }
+
 }
