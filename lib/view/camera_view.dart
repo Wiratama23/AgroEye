@@ -19,7 +19,7 @@ class CameraView extends GetView<ScanController> {
           return  controller.isCameraInit.value
               ? Column (
                 // mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 40),
                   Padding(
@@ -41,32 +41,40 @@ class CameraView extends GetView<ScanController> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(left: Widths * 0.1),
-                      child: Row(
-                        children: [
-                          const Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text("Nama Tumbuhan\t :"),
-                              Text("Hasil Diagnosa\t\t\t\t :"),
-                              Text("Akurasi\t\t\t\t              :")
-                            ],
-                          ),
-                          const SizedBox(width: 5),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(controller.name.value),
-                              Text(controller.diagnose.value),
-                              Text(controller.accuracy.value)
-                            ],
-                          ),
-                        ],
-                      ),
+                  Padding(
+                    padding: EdgeInsets.only(left: Widths * 0.1),
+                    child: Row(
+                      children: [
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Nama Tumbuhan\t :"),
+                            Text("Hasil Diagnosa\t\t\t\t :"),
+                            Text("Akurasi\t\t\t\t              :")
+                          ],
+                        ),
+                        const SizedBox(width: 5),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(controller.name.value),
+                            Text(controller.diagnose.value),
+                            Text(controller.accuracy.value)
+                          ],
+                        ),
+                      ],
                     ),
-                  )
+                  ),
+                  const SizedBox(height: 15),
+                  Padding(
+                    padding: EdgeInsets.only(left: Widths * 0.1),
+                    child: ElevatedButton(
+                        onPressed: (){
+                          controller.toDashboard();
+                        },
+                        child: const Text("Go Back")
+                    ),
+                  ),
                   // Positioned(
                   //   top: (controller.y.value * 700),
                   //   right: (controller.x.value * 100),
