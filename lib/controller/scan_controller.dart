@@ -42,8 +42,8 @@ class ScanController extends GetxController {
       model.value = "assets/daun_mobilenet_model.tflite";
       labels.value = "assets/daun_labels.txt";
     } else if (classify.contains("paddy")) {
-      model.value = "assets/daun_mobilenet_model.tflite";
-      labels.value = "assets/daun_labels.txt";
+      model.value = "assets/padi_model.tflite";
+      labels.value = "assets/padi_label.txt";
     } else {
       model.value = "assets/daun_mobilenet_model.tflite";
       labels.value = "assets/daun_labels.txt";
@@ -156,7 +156,7 @@ class ScanController extends GetxController {
           model: model.value,
           labels: labels.value,
           isAsset: true,
-          numThreads: 1,
+          numThreads: -1,
           useGpuDelegate: false
       );
       isLoaded(true);
