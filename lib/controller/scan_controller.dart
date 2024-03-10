@@ -1,12 +1,17 @@
 import 'dart:developer';
 
 import 'package:camera/camera.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_vision/flutter_vision.dart';
 import 'package:get/get.dart';
 import 'package:get/get_rx/src/rx_workers/utils/debouncer.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:tflite_v2/tflite_v2.dart';
+// import 'package:tflite_v2/tflite_v2.dart';
 
 class ScanController extends GetxController {
+  // RxList<MapEntry<Map<String, double>, String>> boundingBoxes =
+  //     <MapEntry<Map<String, double>, String>>[].obs;
+  FlutterVision vision = FlutterVision();
   late CameraController cameraController;
   late List<CameraDescription> cameras;
   final _debouncer = Debouncer(delay: const Duration(milliseconds: 500));
@@ -15,16 +20,18 @@ class ScanController extends GetxController {
   RxInt cameraCount = 0.obs;
   RxDouble width = 0.0.obs;
   RxDouble height = 0.0.obs;
-  // RxDouble h = 0.0.obs;
-  // RxDouble x = 0.0.obs;
-  // RxDouble y = 0.0.obs;
-  // RxDouble w = 0.0.obs;
+  RxDouble x1 = 0.0.obs;
+  RxDouble x2 = 0.0.obs;
+  RxDouble y1 = 0.0.obs;
+  RxDouble y2 = 0.0.obs;
   RxString model = "".obs;
   RxString labels = "".obs;
   RxString rawlabel = "".obs;
   RxString name = "".obs;
   RxString diagnose = "".obs;
   RxString accuracy = "".obs;
+  RxDouble camwidth = 0.0.obs;
+  RxDouble camheight = 0.0.obs;
 
   checkPermission(Permission permission, String classifies) async {
     final status = await permission.request();
@@ -38,16 +45,17 @@ class ScanController extends GetxController {
   }
 
   classify(String classify) async {
-    if (classify.contains("leaf")) {
-      model.value = "assets/daun_mobilenet_model.tflite";
-      labels.value = "assets/daun_labels.txt";
-    } else if (classify.contains("paddy")) {
-      model.value = "assets/daun_mobilenet_model.tflite";
-      labels.value = "assets/daun_labels.txt";
-    } else {
-      model.value = "assets/daun_mobilenet_model.tflite";
-      labels.value = "assets/daun_labels.txt";
-    }
+    // if (classify.contains("leaf")) {
+    //   model.value = "assets/daun_mobilenet_model.tflite";
+    //   labels.value = "assets/daun_labels.txt";
+    // } else if (classify.contains("paddy")) {
+    //   model.value = "assets/daun_mobilenet_model.tflite";
+    //   labels.value = "assets/daun_labels.txt";
+    // } else {
+    //   model.value = "assets/daun_mobilenet_model.tflite";
+    //   labels.value = "assets/daun_labels.txt";
+    // }
+
     update();
     print("ini modelnya ${model.value}");
     print("ini labelnya ${labels.value}");
@@ -99,51 +107,115 @@ class ScanController extends GetxController {
     }
   }
 
+  // void addBoundingBox(double left, double top, double right, double bottom, String label) {
+  //   final Map<String, double> coordinates = {
+  //     'left': left / (cameraController.value.previewSize?.width ?? 1),
+  //     'top': top / (cameraController.value.previewSize?.height ?? 1),
+  //     'right': right / (cameraController.value.previewSize?.width ?? 1),
+  //     'bottom': bottom / (cameraController.value.previewSize?.height ?? 1),
+  //   };
+  //   boundingBoxes.add(MapEntry(coordinates, label));
+  //   boundingBoxes.add(
+  //     MapEntry(
+  //       coordinates,
+  //       // Rect.fromLTRB(
+  //       //   left / cameraController.value.previewSize!.width,
+  //       //   top / cameraController.value.previewSize!.height,
+  //       //   right / cameraController.value.previewSize!.width,
+  //       //   bottom / cameraController.value.previewSize!.height,
+  //       // ),
+  //       label,
+  //     ),
+  //   );
+  //   print(boundingBoxes.value);
+  // }
+
   objectDetector(CameraImage image) async {
     try {
-      var detector = await Tflite.runModelOnFrame(
-        bytesList: image.planes.map((plane) {
-          return plane.bytes;
-        }).toList(),
-        asynch: true,
-        imageHeight: image.height,
-        imageWidth: image.width,
-        imageMean: 127.5,
-        imageStd: 127.5,
-        numResults: 1,
-        rotation: 90,
-        threshold: 0.1,
+      // var detector = await Tflite.runModelOnFrame(
+      //   bytesList: image.planes.map((plane) {
+      //     return plane.bytes;
+      //   }).toList(),
+      //   asynch: true,
+      //   imageHeight: image.height,
+      //   imageWidth: image.width,
+      //   imageMean: 127.5,
+      //   imageStd: 127.5,
+      //   numResults: 1,
+      //   rotation: 90,
+      //   threshold: 0.1,
+      // );
+      print("image height : ${image.height}");
+      print("image width : ${image.width}");
+      print("canv width : ${camwidth.value}");
+      print("canv height : ${camheight.value}");
+      final detector = await vision.yoloOnFrame(
+          bytesList: image.planes.map((plane) => plane.bytes).toList(),
+          imageHeight: image.height,
+          imageWidth: image.width,
+          iouThreshold: 0.4,
+          confThreshold: 0.4,
+          classThreshold: 0.5
       );
-
+      // boundingBoxes.clear();
+      print(detector);
       if (detector != null) {
-        var detectObject = detector.first;
-        print("ini suka-suka ${detectObject['confidence']}");
-        if(detectObject['confidence'] * 100> 50){
-          splitter(detectObject['label']);
-          accuracy.value = (detectObject['confidence'] * 100).toStringAsFixed(0) + '%';
-          // rawlabel.value = detectObject['label'];
-          // width = RxDouble(image.width.toDouble());
-          // height = RxDouble(image.height.toDouble());
-          // h.value = detector.first['rect']['h'];
-          // w.value = detector.first['rect']['w'];
-          // x.value = detector.first['rect']['x'];
-          // y.value = detector.first['rect']['y'];
-          update();
-        } else {
-          splitter("tidak ditemukan___tidak ditemukan");
-          accuracy.value = (detectObject['confidence'] * 100).toStringAsFixed(0) + '%';
-          update();
+        for (final detectedObject in detector) {
+          final left = detectedObject['box'][0];
+          final top = detectedObject['box'][1];
+          final right = left + detectedObject['box'][2];
+          final bottom = top + detectedObject['box'][3];
+          final confidence = detectedObject['box'][4];
+          final label = detectedObject['tag']; // Get the label
+
+          if (confidence >0.5) {
+            // Add bounding box and label to the list
+            // addBoundingBox(left, top, right, bottom, label);
+            x1.value = left;
+            x2.value = right;
+            y1.value = top;
+            y2.value = bottom;
+            labels.value = label;
+
+            splitter(label); // Use the label directly
+            accuracy.value = (confidence * 100).toStringAsFixed(0) + '%';
+            update();
+          } else {
+            splitter("tidak ditemukan___tidak ditemukan");
+            accuracy.value = (confidence * 100).toStringAsFixed(0) + '%';
+            update();
+          }
         }
-        log("Result is $detector");
-        print("label : ${rawlabel.value}");
-        print("width : ${width.value}");
-        print("heigth : ${height.value}");
-        // print("x${x.value}");
-        // print(y.value);
-        // print(w.value);
-        // print(h.value);
-        update();
       }
+      // if (detector != null) {
+      //   var detectObject = detector.first;
+      //   print("ini suka-suka ${detectObject['confidence']}");
+      //   if(detectObject['confidence'] * 100> 50){
+      //     splitter(detectObject['label']);
+      //     accuracy.value = (detectObject['confidence'] * 100).toStringAsFixed(0) + '%';
+      //     // rawlabel.value = detectObject['label'];
+      //     // width = RxDouble(image.width.toDouble());
+      //     // height = RxDouble(image.height.toDouble());
+      //     // h.value = detector.first['rect']['h'];
+      //     // w.value = detector.first['rect']['w'];
+      //     // x.value = detector.first['rect']['x'];
+      //     // y.value = detector.first['rect']['y'];
+      //     update();
+      //   } else {
+      //     splitter("tidak ditemukan___tidak ditemukan");
+      //     accuracy.value = (detectObject['confidence'] * 100).toStringAsFixed(0) + '%';
+      //     update();
+      //   }
+      //   log("Result is $detector");
+      //   print("label : ${rawlabel.value}");
+      //   print("width : ${width.value}");
+      //   print("heigth : ${height.value}");
+      //   // print("x${x.value}");
+      //   // print(y.value);
+      //   // print(w.value);
+      //   // print(h.value);
+      //   update();
+      // }
     } catch (e) {
       log("Error in object detection: $e");
     }
@@ -151,14 +223,22 @@ class ScanController extends GetxController {
 
   initTFLite() async {
     try{
-      Tflite.close();
-      await Tflite.loadModel(
-          model: model.value,
-          labels: labels.value,
-          isAsset: true,
-          numThreads: 1,
-          useGpuDelegate: false
-      );
+      // Tflite.close();
+      // await Tflite.loadModel(
+      //     model: model.value,
+      //     labels: labels.value,
+      //     isAsset: true,
+      //     numThreads: 1,
+      //     useGpuDelegate: false
+      // );
+      await vision.closeYoloModel();
+      await vision.loadYoloModel(
+          labels: 'assets/labels_v8.txt',
+          modelPath: 'assets/yolov8n_float32.tflite',
+          modelVersion: "yolov8",
+          quantization: false,
+          numThreads: -1,
+          useGpu: true);
       isLoaded(true);
     }catch(e){
       print(e);
@@ -182,6 +262,7 @@ class ScanController extends GetxController {
 
   toDashboard(){
     if(isCameraInit.isTrue && isLoaded.isTrue){
+      vision.closeYoloModel();
       closeTFLiteResources();
       disposeCamera();
       Get.toNamed("/dashboard");
