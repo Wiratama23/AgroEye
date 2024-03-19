@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +8,18 @@ import 'package:get/get.dart';
 import 'package:get/get_rx/src/rx_workers/utils/debouncer.dart';
 import 'package:permission_handler/permission_handler.dart';
 // import 'package:tflite_v2/tflite_v2.dart';
+
+double root(num value, num rootDegree) {
+  // Check dulu benar apa kagak
+  if (value is! num || rootDegree is! num) {
+    throw ArgumentError('Must number');
+  }
+  // Biar gak error kalau nilainya minus, karena minus itu imajiner
+  if (rootDegree <= 0) {
+    throw ArgumentError('Must positive');
+  }
+  return math.pow(value, 1 / rootDegree).toDouble();
+}
 
 class ScanController extends GetxController {
   // RxList<MapEntry<Map<String, double>, String>> boundingBoxes =
@@ -19,6 +32,8 @@ class ScanController extends GetxController {
   RxBool isLoaded = false.obs;
   RxInt cameraCount = 0.obs;
   RxDouble width = 0.0.obs;
+  RxList<MapEntry<Map<String, double>, String>> boundingBoxes =
+      <MapEntry<Map<String, double>, String>>[].obs;
   RxDouble height = 0.0.obs;
   RxDouble x1 = 0.0.obs;
   RxDouble x2 = 0.0.obs;
@@ -32,15 +47,15 @@ class ScanController extends GetxController {
   RxString accuracy = "".obs;
   RxDouble camwidth = 0.0.obs;
   RxDouble camheight = 0.0.obs;
+  int frameCount = 0;
+  bool isDetecting = false;
 
   checkPermission(Permission permission, String classifies) async {
     final status = await permission.request();
     if (status.isGranted) {
       classify(classifies);
     } else {
-      Get.snackbar(
-          "Eror",
-          "Permission is not granted");
+      Get.snackbar("Eror", "Permission is not granted");
     }
   }
 
@@ -60,18 +75,18 @@ class ScanController extends GetxController {
     print("ini modelnya ${model.value}");
     print("ini labelnya ${labels.value}");
     await initTFLite();
-    if(isCameraInit.isFalse){
+    if (isCameraInit.isFalse) {
       initCamera();
-    }else{
+    } else {
       cameraController.resumePreview();
     }
     toCamera();
   }
 
   splitter(String label) {
-    if(label.contains("___")){
+    if (label.contains("___")) {
       final split = label.split("___");
-      if(split.length == 2){
+      if (split.length == 2) {
         split[0] = split[0].replaceAll("_", " ");
         name.value = split[0].replaceAll(",", "");
         diagnose.value = split[1].replaceAll("_", " ");
@@ -80,22 +95,16 @@ class ScanController extends GetxController {
   }
 
   initCamera() async {
-    if(await Permission.camera.request().isGranted) {
+    if (await Permission.camera.request().isGranted) {
       cameras = await availableCameras();
-      cameraController = CameraController(
-        cameras[0],
-        ResolutionPreset.max,
-        imageFormatGroup: ImageFormatGroup.yuv420,
-          enableAudio: false
-      );
+      cameraController = CameraController(cameras[0], ResolutionPreset.max,
+          imageFormatGroup: ImageFormatGroup.yuv420, enableAudio: false);
       await cameraController.initialize().then((value) {
         cameraController.startImageStream((image) {
-          cameraCount.value++;
-          if(cameraCount.value % 10 == 0){
-            cameraCount.value = 0;
-            _debouncer(() {
-              objectDetector(image);
-            });
+          frameCount++;
+          if (frameCount % 5 == 0 && !isDetecting) {
+            frameCount = 0;
+            objectDetector(image);
           }
           update();
           isCameraInit(true);
@@ -131,34 +140,21 @@ class ScanController extends GetxController {
   // }
 
   objectDetector(CameraImage image) async {
+    if (isDetecting) return;
+    isDetecting = true;
+    print(image.height);
+    print(image.width);
     try {
-      // var detector = await Tflite.runModelOnFrame(
-      //   bytesList: image.planes.map((plane) {
-      //     return plane.bytes;
-      //   }).toList(),
-      //   asynch: true,
-      //   imageHeight: image.height,
-      //   imageWidth: image.width,
-      //   imageMean: 127.5,
-      //   imageStd: 127.5,
-      //   numResults: 1,
-      //   rotation: 90,
-      //   threshold: 0.1,
-      // );
-      print("image height : ${image.height}");
-      print("image width : ${image.width}");
-      print("canv width : ${camwidth.value}");
-      print("canv height : ${camheight.value}");
       final detector = await vision.yoloOnFrame(
           bytesList: image.planes.map((plane) => plane.bytes).toList(),
           imageHeight: image.height,
           imageWidth: image.width,
-          iouThreshold: 0.4,
-          confThreshold: 0.4,
-          classThreshold: 0.5
-      );
-      // boundingBoxes.clear();
+          iouThreshold: 0.3,
+          confThreshold: 0.3,
+          classThreshold: 0.4);
       print(detector);
+      boundingBoxes.clear(); // Clear the list before adding new bounding boxes
+
       if (detector != null) {
         for (final detectedObject in detector) {
           final left = detectedObject['box'][0];
@@ -166,63 +162,35 @@ class ScanController extends GetxController {
           final right = left + detectedObject['box'][2];
           final bottom = top + detectedObject['box'][3];
           final confidence = detectedObject['box'][4];
-          final label = detectedObject['tag']; // Get the label
+          final label = detectedObject['tag'];
 
-          if (confidence >0.5) {
+          if (confidence > 0.3) {
             // Add bounding box and label to the list
-            // addBoundingBox(left, top, right, bottom, label);
-            x1.value = left;
-            x2.value = right;
-            y1.value = top;
-            y2.value = bottom;
-            labels.value = label;
-
-            splitter(label); // Use the label directly
-            accuracy.value = (confidence * 100).toStringAsFixed(0) + '%';
-            update();
-          } else {
-            splitter("tidak ditemukan___tidak ditemukan");
-            accuracy.value = (confidence * 100).toStringAsFixed(0) + '%';
-            update();
+            boundingBoxes.add(
+              MapEntry(
+                {
+                  'left': math.pow(left, 1.1) / image.width,
+                  'top': root(top, 1.129) / image.height,
+                  'right': math.pow(right, 1.01) / image.width,
+                  'bottom': root(bottom, 1.2) / image.height,
+                },
+                label,
+              ),
+            );
           }
         }
       }
-      // if (detector != null) {
-      //   var detectObject = detector.first;
-      //   print("ini suka-suka ${detectObject['confidence']}");
-      //   if(detectObject['confidence'] * 100> 50){
-      //     splitter(detectObject['label']);
-      //     accuracy.value = (detectObject['confidence'] * 100).toStringAsFixed(0) + '%';
-      //     // rawlabel.value = detectObject['label'];
-      //     // width = RxDouble(image.width.toDouble());
-      //     // height = RxDouble(image.height.toDouble());
-      //     // h.value = detector.first['rect']['h'];
-      //     // w.value = detector.first['rect']['w'];
-      //     // x.value = detector.first['rect']['x'];
-      //     // y.value = detector.first['rect']['y'];
-      //     update();
-      //   } else {
-      //     splitter("tidak ditemukan___tidak ditemukan");
-      //     accuracy.value = (detectObject['confidence'] * 100).toStringAsFixed(0) + '%';
-      //     update();
-      //   }
-      //   log("Result is $detector");
-      //   print("label : ${rawlabel.value}");
-      //   print("width : ${width.value}");
-      //   print("heigth : ${height.value}");
-      //   // print("x${x.value}");
-      //   // print(y.value);
-      //   // print(w.value);
-      //   // print(h.value);
-      //   update();
-      // }
+
+      update();
     } catch (e) {
-      log("Error in object detection: $e");
+      print("Error in object detection: $e");
+    } finally {
+      isDetecting = false;
     }
   }
 
   initTFLite() async {
-    try{
+    try {
       // Tflite.close();
       // await Tflite.loadModel(
       //     model: model.value,
@@ -237,10 +205,10 @@ class ScanController extends GetxController {
           modelPath: 'assets/yolov8n_float32.tflite',
           modelVersion: "yolov8",
           quantization: false,
-          numThreads: -1,
+          numThreads: 2,
           useGpu: true);
       isLoaded(true);
-    }catch(e){
+    } catch (e) {
       print(e);
     }
   }
@@ -256,12 +224,12 @@ class ScanController extends GetxController {
     // isCameraInit(false);
   }
 
-  toCamera(){
+  toCamera() {
     Get.toNamed("/home");
   }
 
-  toDashboard(){
-    if(isCameraInit.isTrue && isLoaded.isTrue){
+  toDashboard() {
+    if (isCameraInit.isTrue && isLoaded.isTrue) {
       vision.closeYoloModel();
       closeTFLiteResources();
       disposeCamera();
@@ -270,5 +238,4 @@ class ScanController extends GetxController {
       Get.snackbar("Error", "Wait for a while");
     }
   }
-
 }
